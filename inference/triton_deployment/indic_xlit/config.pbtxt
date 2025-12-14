@@ -1,5 +1,5 @@
-name: "indici_xlit"
-platform: "python"
+name: "indic_xlit"
+backend: "python"
 max_batch_size: 32
 
 input [
