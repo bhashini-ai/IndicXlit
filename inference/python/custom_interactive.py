@@ -116,7 +116,9 @@ class Transliterator:
         # self.args.source_lang = 'en'
         # self.args.target_lang = 'bn'
         # self.args.encoder_langtok = 'tgt'
-        self.args.lang_dict = 'lang_list.txt'
+        # self.args.lang_dict = 'lang_list.txt'
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.args.lang_dict = os.path.join(current_dir, 'lang_list.txt')
 
         self.cfg = convert_namespace_to_omegaconf(self.args)
 
