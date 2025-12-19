@@ -112,11 +112,11 @@ class Transliterator:
         self.args = options.parse_args_and_arch(self.parser, input_args = [data_bin_dir] )
         
         self.args.skip_invalid_size_inputs_valid_test = False
-        self.args.lang_pairs = "en-as,en-bn,en-gom,en-gu,en-hi,en-kn,en-ks,en-mai,en-ml,en-mr,en-ne,en-or,en-pa,en-sa,en-sd,en-si,en-ta,en-te,en-ur"
+        self.args.lang_pairs = "en-as,en-bn,en-brx,en-gom,en-gu,en-hi,en-kn,en-ks,en-mai,en-ml,en-mni,en-mr,en-ne,en-or,en-pa,en-sa,en-sd,en-si,en-ta,en-te,en-ur"
         # self.args.source_lang = 'en'
         # self.args.target_lang = 'bn'
         # self.args.encoder_langtok = 'tgt'
-        # self.args.lang_dict = 'lang_list.txt'
+        # Use absolute path relative to this file to ensure it's found in Docker
         current_dir = os.path.dirname(os.path.abspath(__file__))
         self.args.lang_dict = os.path.join(current_dir, 'lang_list.txt')
 
