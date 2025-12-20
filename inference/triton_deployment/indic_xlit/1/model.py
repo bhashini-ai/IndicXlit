@@ -40,11 +40,108 @@ class TritonPythonModel:
             batch_size=32 
         )
         
-        # Rescoring is currently DISABLED for performance and due to missing dependencies in the source repo
-        # If enabled, we would load word_prob_dicts here.
-        self.rescore = False
+        # Rescoring enabled
+        self.rescore_enabled = True
+        self.word_prob_dict = {}
+        
+        if self.rescore_enabled:
+            # Load dictionaries for supported languages
+            langs = ['en', 'as', 'bn', 'brx', 'gom', 'gu', 'hi', 'kn', 'ks', 'mai', 'ml', 'mni', 'mr', 'ne', 'or', 'pa', 'sa', 'sd', 'si', 'ta', 'te', 'ur']
+            base_path = "/models/IndicXlit/word_prob_dicts"
+            print(f"Loading word_prob_dicts from {base_path}...")
+            
+            for lang in langs:
+                try:
+                    path = os.path.join(base_path, f"{lang}_word_prob_dict.json")
+                    if os.path.exists(path):
+                        with open(path, 'r', encoding='utf-8') as f:
+                            self.word_prob_dict[lang] = json.load(f)
+                    else:
+                        print(f"Warning: Dict for {lang} not found at {path}")
+                        self.word_prob_dict[lang] = {}
+                except Exception as e:
+                    print(f"Error loading dict for {lang}: {e}")
+                    self.word_prob_dict[lang] = {}
 
         print("IndicXlit Model Initialized")
+
+    def rescore(self, res_dict, result_dict, target_lang, alpha=0.9):
+        """
+        Rescoring logic ported from xlit_translit.py
+        """
+        if target_lang not in self.word_prob_dict:
+            # specific dict not found, return empty or handle gracefully
+            # effectively just returns best from model if dict is empty/missing
+            return {}
+
+        word_prob_dict = self.word_prob_dict[target_lang]
+        if not word_prob_dict:
+             return {}
+
+        candidate_word_prob_norm_dict = {}
+        candidate_word_result_norm_dict = {}
+
+        input_data = {}
+        for i in res_dict.keys():
+            input_data[res_dict[i]['S']] = []
+            for j in range(len(res_dict[i]['H'])):
+                input_data[res_dict[i]['S']].append( res_dict[i]['H'][j][0] )
+        
+        output_data = {}
+
+        for src_word in input_data.keys():
+            candidates = input_data[src_word]
+            candidates = [' '.join(word.split(' ')) for word in candidates]
+            
+            total_score = 0
+            if src_word.lower() in result_dict.keys():
+                for candidate_word in candidates:
+                    if candidate_word in result_dict[src_word.lower()].keys():
+                        total_score += result_dict[src_word.lower()][candidate_word]
+            
+            candidate_word_result_norm_dict[src_word.lower()] = {}
+            for candidate_word in candidates:
+                if total_score > 0 and src_word.lower() in result_dict and candidate_word in result_dict[src_word.lower()]:
+                    candidate_word_result_norm_dict[src_word.lower()][candidate_word] = (result_dict[src_word.lower()][candidate_word]/total_score)
+                else:
+                    candidate_word_result_norm_dict[src_word.lower()][candidate_word] = 0
+
+            candidates = [''.join(word.split(' ')) for word in candidates ]
+            
+            total_prob = 0 
+            for candidate_word in candidates:
+                if candidate_word in word_prob_dict.keys():
+                    total_prob += word_prob_dict[candidate_word]        
+            
+            candidate_word_prob_norm_dict[src_word.lower()] = {}
+            for candidate_word in candidates:
+                if candidate_word in word_prob_dict.keys() and total_prob > 0:
+                    candidate_word_prob_norm_dict[src_word.lower()][candidate_word] = (word_prob_dict[candidate_word]/total_prob)
+                else:
+                    candidate_word_prob_norm_dict[src_word.lower()][candidate_word] = 0
+            
+            temp_candidates_tuple_list = []
+            candidates = input_data[src_word]
+            candidates = [ ''.join(word.split(' ')) for word in candidates]
+            
+            for candidate_word in candidates:
+                spaced_candidate = ' '.join(list(candidate_word))
+                
+                score_model = candidate_word_result_norm_dict[src_word.lower()].get(spaced_candidate, 0)
+                score_dict = candidate_word_prob_norm_dict[src_word.lower()].get(candidate_word, 0)
+                
+                final_score = alpha * score_model + (1-alpha) * score_dict
+                temp_candidates_tuple_list.append((candidate_word, final_score))
+
+            temp_candidates_tuple_list.sort(key = lambda x: x[1], reverse = True )
+            
+            # For Triton we just want the top-1 best word
+            if temp_candidates_tuple_list:
+                output_data[src_word] = temp_candidates_tuple_list[0][0] # Return the joined word directly
+            else:
+                output_data[src_word] = candidates[0] if candidates else ""
+
+        return output_data
 
     def execute(self, requests):
         """
@@ -92,28 +189,69 @@ class TritonPythonModel:
                     # The custom_interactive.py 'translate' method returns a raw string formatted with S-id, H-id, etc.
                     result_str = self.transliterator.translate(processed_words)
                     
-                    # 3. Post-processing (Parsing the result_str)
+                    # 3. Post-processing (Parsing the result_str for N-best)
                     # We need to extract the 'H-' (Hypothesis) lines which contain the top prediction.
                     # Format: H-{id}\t{score}\t{hypothesis}
                     # id corresponds to the index in the batch.
                     lines = result_str.strip().split('\n')
+                    
+                    list_s = [line for line in lines if 'S-' in line]
+                    list_h = [line for line in lines if 'H-' in line]
+                    
+                    list_s.sort(key = lambda x: int(x.split('\t')[0].split('-')[1]))
+                    list_h.sort(key = lambda x: int(x.split('\t')[0].split('-')[1]))
+                    
+                    res_dict = {}
+                    for s in list_s:
+                        s_id = int(s.split('\t')[0].split('-')[1])
+                        # The S- line contains the source word (preprocessed)
+                        res_dict[s_id] = { 'S' : s.split('\t')[1] }
+                        res_dict[s_id]['H'] = []
+                        
+                        for h in list_h:
+                            h_id = int(h.split('\t')[0].split('-')[1])
+                            if s_id == h_id:
+                                # H line: H-0 \t score \t hypothesis
+                                parts = h.split('\t')
+                                hyp = parts[2]
+                                score = float(parts[1])
+                                res_dict[s_id]['H'].append((hyp, pow(2, score)))
+                        
+                        # Sort hypotheses by score desc
+                        res_dict[s_id]['H'].sort(key=lambda x: float(x[1]), reverse=True)
+
+                    # Build result_dict for rescoring
+                    result_dict = {}
+                    for i in res_dict.keys():
+                        src = res_dict[i]['S']
+                        result_dict[src] = {}
+                        for j in range(len(res_dict[i]['H'])):
+                             cand = res_dict[i]['H'][j][0]
+                             prob = res_dict[i]['H'][j][1]
+                             result_dict[src][cand] = prob
+                    
+                    # Apply Rescoring if enabled and dict exists
                     predictions = {}
                     
-                    for line in lines:
-                        if line.startswith('H-'):
-                            parts = line.split('\t')
-                            idx = int(parts[0].split('-')[1])
-                            # score = float(parts[1])
-                            transliteration = parts[2]
-                            
-                            if idx not in predictions:
-                                # Clean up spaces
-                                val = transliteration.replace(' ', '')
-                                # Clean up leading special characters/broken tokens
-                                # Indic languages and Roman are alphanumeric. 
-                                # We strip leading/trailing punctuation like ., -, etc.
-                                val = val.lstrip('.-_()[]{}|\\/') 
-                                predictions[idx] = val
+                    # Call rescore
+                    rescored_map = self.rescore(res_dict, result_dict, target_lang)
+                    
+                    # Iterate to extract best result
+                    for s_id in res_dict.keys():
+                        src_word = res_dict[s_id]['S']
+                        
+                        if rescored_map and src_word in rescored_map:
+                            # Rescoring returned a best candidate
+                            final_cand = rescored_map[src_word]
+                        else:
+                            # Fallback to Top-1
+                            final_cand = res_dict[s_id]['H'][0][0] if res_dict[s_id]['H'] else ""
+                        
+                        # Clean up spaces
+                        val = final_cand.replace(' ', '')
+                        # Clean up leading special characters/broken tokens
+                        val = val.lstrip('.-_()[]{}|\\/!@#$%^&*+=,<>?;:"\'`~') 
+                        predictions[s_id] = val
 
                     # Reconstruct sentences
                     output_texts = []
