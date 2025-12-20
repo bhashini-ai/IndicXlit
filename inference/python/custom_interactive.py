@@ -271,19 +271,19 @@ class Transliterator:
                 src_str = self.src_dict.string(src_tokens, self.cfg.common_eval.post_process)
 
                 
-                print("S-{}\t{}".format(id_, src_str))
+                #print("S-{}\t{}".format(id_, src_str))
                 result_str += "S-{}\t{}".format(id_, src_str) + '\n'
 
-                print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
+                #print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
                 result_str += "W-{}\t{:.3f}\tseconds".format(id_, info["time"]) + '\n'
 
                 for constraint in info["constraints"]:
-                    print(
-                        "C-{}\t{}".format(
-                            id_,
-                            self.tgt_dict.string(constraint, self.cfg.common_eval.post_process),
-                        )
-                    )
+                    #print(
+                    #    "C-{}\t{}".format(
+                    #        id_,
+                    #        self.tgt_dict.string(constraint, self.cfg.common_eval.post_process),
+                    #    )
+                    #)
                     result_str += "C-{}\t{}".format(
                             id_,
                             self.tgt_dict.string(constraint, self.cfg.common_eval.post_process),
@@ -303,25 +303,25 @@ class Transliterator:
                 detok_hypo_str = self.decode_fn(hypo_str)
                 score = hypo["score"] / math.log(2)  # convert to base 2
                 # original hypothesis (after tokenization and BPE)
-                print("H-{}\t{}\t{}".format(id_, score, hypo_str))
+                #print("H-{}\t{}\t{}".format(id_, score, hypo_str))
                 result_str += "H-{}\t{}\t{}".format(id_, score, hypo_str) + '\n'
 
                 # detokenized hypothesis
-                print("D-{}\t{}\t{}".format(id_, score, detok_hypo_str))
+                #print("D-{}\t{}\t{}".format(id_, score, detok_hypo_str))
                 result_str += "D-{}\t{}\t{}".format(id_, score, detok_hypo_str) + '\n'
                 
-                print(
-                    "P-{}\t{}".format(
-                        id_,
-                        " ".join(
-                            map(
-                                lambda x: "{:.4f}".format(x),
-                                # convert from base e to base 2
-                                hypo["positional_scores"].div_(math.log(2)).tolist(),
-                            )
-                        ),
-                    )
-                )
+                #print(
+                #    "P-{}\t{}".format(
+                #        id_,
+                #        " ".join(
+                #            map(
+                #                lambda x: "{:.4f}".format(x),
+                #                # convert from base e to base 2
+                #                hypo["positional_scores"].div_(math.log(2)).tolist(),
+                #            )
+                #        ),
+                #    )
+                #)
                 result_str += "P-{}\t{}".format(
                         id_,
                         " ".join(
@@ -337,7 +337,7 @@ class Transliterator:
                     alignment_str = " ".join(
                         ["{}-{}".format(src, tgt) for src, tgt in alignment]
                     )
-                    print("A-{}\t{}".format(id_, alignment_str))
+                    #print("A-{}\t{}".format(id_, alignment_str))
                     result_str += "A-{}\t{}".format(id_, alignment_str) + '\n'
 
             # # update running id_ counter
