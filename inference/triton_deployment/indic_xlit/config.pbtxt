@@ -12,6 +12,11 @@ input [
     name: "TARGET_LANG"
     data_type: TYPE_STRING
     dims: [ 1 ]
+  },
+  {
+    name: "SOURCE_LANG"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
   }
 ]
 output [

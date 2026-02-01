@@ -32,9 +32,21 @@ class TritonPythonModel:
         beam = 5
         nbest = 5
         
-        self.transliterator = Transliterator(
+        # English to Indic Transliterator
+        print("Loading English to Indic model...")
+        self.en_indic_trans = Transliterator(
             data_bin_dir="/models/IndicXlit/corpus-bin",
             model_checkpoint_path="/models/IndicXlit/transformer/indicxlit.pt",
+            beam=beam,
+            nbest=nbest,
+            batch_size=32 
+        )
+
+        # Indic to English Transliterator
+        print("Loading Indic to English model...")
+        self.indic_en_trans = Transliterator(
+            data_bin_dir="/models/IndicXlit/corpus-bin",
+            model_checkpoint_path="/home/models/IndicXlit/transformer-indic-en/indicxlit.pt",
             beam=beam,
             nbest=nbest,
             batch_size=32 
@@ -45,7 +57,7 @@ class TritonPythonModel:
         self.word_prob_dict = {}
         
         if self.rescore_enabled:
-            # Load dictionaries for supported languages
+            # Load dictionaries for supported languages including English for back-transliteration
             langs = ['en', 'as', 'bn', 'brx', 'gom', 'gu', 'hi', 'kn', 'ks', 'mai', 'ml', 'mni', 'mr', 'ne', 'or', 'pa', 'sa', 'sd', 'si', 'ta', 'te', 'ur']
             base_path = "/models/IndicXlit/word_prob_dicts"
             print(f"Loading word_prob_dicts from {base_path}...")
@@ -153,10 +165,23 @@ class TritonPythonModel:
             # Get inputs
             input_text = pb_utils.get_input_tensor_by_name(request, "TEXT")
             target_lang_tensor = pb_utils.get_input_tensor_by_name(request, "TARGET_LANG")
+            source_lang_tensor = pb_utils.get_input_tensor_by_name(request, "SOURCE_LANG")
             
             # Triton strings are bytes, decode them
             texts = [t.decode('utf-8') for t in input_text.as_numpy().flatten()]
             target_lang = target_lang_tensor.as_numpy()[0][0].decode('utf-8').strip()
+            # Default to 'en' if SOURCE_LANG is missing or empty for backward compatibility
+            source_lang = "en"
+            if source_lang_tensor is not None:
+                source_lang = source_lang_tensor.as_numpy()[0][0].decode('utf-8').strip()
+            
+            # Determine which model to use and what the prefix should be
+            if target_lang == "en":
+                transliterator = self.indic_en_trans
+                lang_token = source_lang
+            else:
+                transliterator = self.en_indic_trans
+                lang_token = target_lang
             
             # Model is trained on WORDS. We must split sentences into words.
             all_words = []
@@ -181,13 +206,13 @@ class TritonPythonModel:
                 # 1. Pre-processing
                 processed_words = [word.lower() for word in all_words]
                 processed_words = [' '.join(list(word)) for word in processed_words]
-                processed_words = [f'__{target_lang}__ {word}' for word in processed_words]
+                processed_words = [f'__{lang_token}__ {word}' for word in processed_words]
                 
                 # 2. Translation (Fairseq)
                 # Transliterator.translate takes a list of strings
                 try:
                     # The custom_interactive.py 'translate' method returns a raw string formatted with S-id, H-id, etc.
-                    result_str = self.transliterator.translate(processed_words)
+                    result_str = transliterator.translate(processed_words)
                     
                     # 3. Post-processing (Parsing the result_str for N-best)
                     # We need to extract the 'H-' (Hypothesis) lines which contain the top prediction.
