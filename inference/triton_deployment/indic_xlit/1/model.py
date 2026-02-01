@@ -36,7 +36,7 @@ class TritonPythonModel:
         print("Loading English to Indic model...")
         self.en_indic_trans = Transliterator(
             data_bin_dir="/models/IndicXlit/corpus-bin",
-            model_checkpoint_path="/models/IndicXlit/transformer/indicxlit.pt",
+            model_checkpoint_path="/models/IndicXlit/transformer-en-indic/indicxlit.pt",
             beam=beam,
             nbest=nbest,
             batch_size=32 
@@ -46,7 +46,7 @@ class TritonPythonModel:
         print("Loading Indic to English model...")
         self.indic_en_trans = Transliterator(
             data_bin_dir="/models/IndicXlit/corpus-bin",
-            model_checkpoint_path="/home/models/IndicXlit/transformer-indic-en/indicxlit.pt",
+            model_checkpoint_path="/models/IndicXlit/transformer-indic-en/indicxlit.pt",
             beam=beam,
             nbest=nbest,
             batch_size=32 
