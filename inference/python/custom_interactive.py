@@ -87,7 +87,7 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
 # added
 class Transliterator:
     def __init__(
-        self, data_bin_dir, model_checkpoint_path, beam, nbest, batch_size = 32
+        self, data_bin_dir, model_checkpoint_path, beam, nbest, lang_pairs=None, batch_size = 32
     ):
 
         self.parser = options.get_interactive_generation_parser()
@@ -112,7 +112,10 @@ class Transliterator:
         self.args = options.parse_args_and_arch(self.parser, input_args = [data_bin_dir] )
         
         self.args.skip_invalid_size_inputs_valid_test = False
-        self.args.lang_pairs = "en-as,en-bn,en-brx,en-gom,en-gu,en-hi,en-kn,en-ks,en-mai,en-ml,en-mni,en-mr,en-ne,en-or,en-pa,en-sa,en-sd,en-si,en-ta,en-te,en-ur"
+        if lang_pairs is None:
+            self.args.lang_pairs = "en-as,en-bn,en-brx,en-gom,en-gu,en-hi,en-kn,en-ks,en-mai,en-ml,en-mni,en-mr,en-ne,en-or,en-pa,en-sa,en-sd,en-si,en-ta,en-te,en-ur"
+        else:
+            self.args.lang_pairs = lang_pairs
         # self.args.source_lang = 'en'
         # self.args.target_lang = 'bn'
         # self.args.encoder_langtok = 'tgt'

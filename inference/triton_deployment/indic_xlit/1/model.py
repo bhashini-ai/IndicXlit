@@ -34,21 +34,25 @@ class TritonPythonModel:
         
         # English to Indic Transliterator
         print("Loading English to Indic model...")
+        en_indic_lang_pairs = "en-as,en-bn,en-brx,en-gom,en-gu,en-hi,en-kn,en-ks,en-mai,en-ml,en-mni,en-mr,en-ne,en-or,en-pa,en-sa,en-sd,en-si,en-ta,en-te,en-ur"
         self.en_indic_trans = Transliterator(
             data_bin_dir="/models/IndicXlit/corpus-bin",
             model_checkpoint_path="/models/IndicXlit/transformer-en-indic/indicxlit.pt",
             beam=beam,
             nbest=nbest,
+            lang_pairs=en_indic_lang_pairs,
             batch_size=32 
         )
 
         # Indic to English Transliterator
         print("Loading Indic to English model...")
+        indic_en_lang_pairs = "as-en,bn-en,brx-en,gom-en,gu-en,hi-en,kn-en,ks-en,mai-en,ml-en,mni-en,mr-en,ne-en,or-en,pa-en,sa-en,sd-en,si-en,ta-en,te-en,ur-en"
         self.indic_en_trans = Transliterator(
             data_bin_dir="/models/IndicXlit/corpus-bin",
             model_checkpoint_path="/models/IndicXlit/transformer-indic-en/indicxlit.pt",
             beam=beam,
             nbest=nbest,
+            lang_pairs=indic_en_lang_pairs,
             batch_size=32 
         )
         
